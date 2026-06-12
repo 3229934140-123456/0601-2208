@@ -11,6 +11,7 @@ import { usePortStore } from '@/store/usePortStore';
 interface BookingCardProps {
   booking: Booking;
   hasConflict?: boolean;
+  highlight?: boolean;
 }
 
 const cargoIcons: Record<CargoType, React.ComponentType<{ className?: string }>> = {
@@ -30,7 +31,7 @@ const statusBg: Record<string, string> = {
 };
 
 // 日历卡片（可拖拽）
-export default function BookingCard({ booking, hasConflict = false }: BookingCardProps) {
+export default function BookingCard({ booking, hasConflict = false, highlight = false }: BookingCardProps) {
   const [showTooltip, setShowTooltip] = useState(false);
   const { detectConflict } = usePortStore();
   const CargoIcon = cargoIcons[booking.cargoType];
@@ -62,6 +63,7 @@ export default function BookingCard({ booking, hasConflict = false }: BookingCar
         statusBg[booking.status] || statusBg.pending,
         isDragging && 'opacity-50 scale-[1.02] shadow-xl',
         hasConflict && 'border-2 border-red-500 animate-shake',
+        highlight && 'ring-4 ring-port-400 ring-offset-2 ring-offset-slatex-850 animate-breath-glow scale-[1.02]',
       )}
     >
       {hasConflict && (

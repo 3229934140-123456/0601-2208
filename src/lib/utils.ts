@@ -49,6 +49,43 @@ export interface InitPortDataResult {
   waitingShips: WaitingShip[]
 }
 
+const WAITING_ORDER_KEY = 'port_waiting_order_v1';
+const NOTIFICATIONS_KEY = 'port_notifications_v1';
+const BOOKINGS_KEY = 'port_bookings_v1';
+
+export function loadWaitingOrder(): string[] | null {
+  try {
+    const raw = localStorage.getItem(WAITING_ORDER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveWaitingOrder(ids: string[]) {
+  try {
+    localStorage.setItem(WAITING_ORDER_KEY, JSON.stringify(ids));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function reorderBySavedOrder<T extends { id: string }>(items: T[], savedIds: string[] | null): T[] {
+  if (!savedIds || savedIds.length === 0) return items;
+  const idSet = new Set(savedIds);
+  const ordered: T[] = [];
+  savedIds.forEach((id) => {
+    const found = items.find((it) => it.id === id);
+    if (found) ordered.push(found);
+  });
+  items.forEach((it) => {
+    if (!idSet.has(it.id)) ordered.push(it);
+  });
+  return ordered;
+}
+
 export function initPortData(): InitPortDataResult {
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())

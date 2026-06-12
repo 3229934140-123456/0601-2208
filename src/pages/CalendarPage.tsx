@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import ViewToggle from '@/components/calendar/ViewToggle';
 import FilterPanel from '@/components/calendar/FilterPanel';
@@ -8,9 +9,30 @@ import type { ViewMode } from '@/types';
 
 // 泊位日历页
 export default function CalendarPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [showBookingForm, setShowBookingForm] = useState(false);
+  const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const dateParam = searchParams.get('date');
+    const highlightParam = searchParams.get('highlight');
+    if (dateParam) {
+      const d = new Date(dateParam);
+      if (!isNaN(d.getTime())) setCurrentDate(d);
+    }
+    if (highlightParam) {
+      setHighlightBookingId(highlightParam);
+      const t = setTimeout(() => {
+        setHighlightBookingId(null);
+        const next = new URLSearchParams(searchParams);
+        next.delete('highlight');
+        setSearchParams(next, { replace: true });
+      }, 4000);
+      return () => clearTimeout(t);
+    }
+  }, [searchParams, setSearchParams]);
 
   return (
     <div className="flex h-full flex-col gap-4 p-6">
@@ -39,7 +61,7 @@ export default function CalendarPage() {
       <FilterPanel />
 
       <div className="flex-1 min-h-0">
-        <CalendarGrid viewMode={viewMode} currentDate={currentDate} />
+        <CalendarGrid viewMode={viewMode} currentDate={currentDate} highlightBookingId={highlightBookingId} />
       </div>
 
       <BookingForm open={showBookingForm} onClose={() => setShowBookingForm(false)} />

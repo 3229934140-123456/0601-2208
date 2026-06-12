@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { Send, Reply, CheckCheck, Clock, Navigation } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Send, Reply, CheckCheck, Clock, Navigation, Anchor, CalendarDays, Package } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { usePortStore } from '@/store/usePortStore';
-import type { Notification } from '@/types';
+import type { Booking, Notification } from '@/types';
+import { CARGO_LABELS } from '@/types';
 
 interface MessageDetailProps {
   message: Notification | null;
+  relatedBooking?: Booking | null;
 }
 
 const quickReplies = [
@@ -17,10 +20,20 @@ const quickReplies = [
 ];
 
 // 消息详情面板
-export default function MessageDetail({ message }: MessageDetailProps) {
+export default function MessageDetail({ message, relatedBooking }: MessageDetailProps) {
   const { sendNotification } = usePortStore();
+  const navigate = useNavigate();
   const [replyText, setReplyText] = useState('');
   const [sentFlash, setSentFlash] = useState(false);
+
+  const gotoBookingCalendar = () => {
+    if (!relatedBooking) return;
+    const params = new URLSearchParams();
+    params.set('date', relatedBooking.etb.toISOString().slice(0, 10));
+    if (relatedBooking.berthId) params.set('berth', relatedBooking.berthId);
+    params.set('highlight', relatedBooking.id);
+    navigate(`/calendar?${params.toString()}`);
+  };
 
   if (!message) {
     return (
@@ -93,10 +106,72 @@ export default function MessageDetail({ message }: MessageDetailProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-5">
+      <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
         <div className="rounded-lg bg-slatex-850/80 p-4 text-sm leading-relaxed text-slate-200 shadow-sm">
           <p className="whitespace-pre-wrap">{message.content}</p>
         </div>
+
+        {relatedBooking && (
+          <div className="rounded-xl border border-port-500/30 bg-gradient-to-br from-port-500/10 to-transparent p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h4 className="flex items-center gap-1.5 text-sm font-semibold text-port-300">
+                <Anchor className="h-4 w-4" />
+                关联船舶计划
+              </h4>
+              <button
+                type="button"
+                onClick={gotoBookingCalendar}
+                className="flex items-center gap-1 rounded-md border border-port-500/40 bg-port-500/10 px-2.5 py-1 text-xs font-medium text-port-300 transition-colors hover:bg-port-500/20"
+              >
+                <CalendarDays className="h-3 w-3" />
+                查看日历
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <span className="text-slate-500">船名</span>
+                <p className="mt-0.5 font-semibold text-slate-100">{relatedBooking.shipName}</p>
+              </div>
+              <div>
+                <span className="text-slate-500">泊位</span>
+                <p className="mt-0.5 font-semibold text-slate-100">
+                  {relatedBooking.berthId || '待分配'}
+                </p>
+              </div>
+              <div>
+                <span className="text-slate-500">货类 · 货量</span>
+                <p className="mt-0.5 font-medium text-slate-200">
+                  <span className="inline-flex items-center gap-1">
+                    <Package className="h-3 w-3 text-port-400" />
+                    {CARGO_LABELS[relatedBooking.cargoType]} · {relatedBooking.cargoAmount.toLocaleString()} t
+                  </span>
+                </p>
+              </div>
+              <div>
+                <span className="text-slate-500">船代</span>
+                <p className="mt-0.5 font-medium text-slate-200">{relatedBooking.agentName}</p>
+              </div>
+              <div>
+                <span className="text-slate-500">ETA 到港</span>
+                <p className="mt-0.5 font-mono tabular-nums text-slate-200">
+                  {format(relatedBooking.eta, 'MM-dd HH:mm', { locale: zhCN })}
+                </p>
+              </div>
+              <div>
+                <span className="text-slate-500">ETB 靠泊</span>
+                <p className="mt-0.5 font-mono tabular-nums text-slate-200">
+                  {format(relatedBooking.etb, 'MM-dd HH:mm', { locale: zhCN })}
+                </p>
+              </div>
+              <div className="col-span-2">
+                <span className="text-slate-500">ETD 离港</span>
+                <p className="mt-0.5 font-mono tabular-nums text-slate-200">
+                  {format(relatedBooking.etd, 'MM-dd HH:mm', { locale: zhCN })}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="border-t border-slate-700/60 p-4">

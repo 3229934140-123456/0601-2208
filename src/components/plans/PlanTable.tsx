@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { MoreVertical, Anchor, Check, Calendar, LogOut, RefreshCcw, X, Bell } from 'lucide-react';
+import { MoreVertical, Anchor, Check, Calendar, LogOut, RefreshCcw, X, Bell, CalendarDays } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -25,6 +25,7 @@ const STATUS_STYLE: Record<BookingStatus, { bg: string; text: string; ring: stri
 export interface PlanTableProps {
   bookings: Booking[];
   onReschedule: (booking: Booking) => void;
+  onViewInCalendar?: (booking: Booking) => void;
 }
 
 interface MenuAction {
@@ -37,6 +38,7 @@ interface MenuAction {
 }
 
 const ACTIONS: MenuAction[] = [
+  { key: 'view', label: '在日历中查看', icon: CalendarDays, className: 'text-port-600 hover:bg-port-50' },
   { key: 'confirm', label: '确认靠泊', icon: Check, status: 'confirmed' },
   { key: 'berth', label: '标记已靠泊', icon: Anchor, status: 'berthed' },
   { key: 'depart', label: '标记离港', icon: LogOut, status: 'departed' },
@@ -65,11 +67,13 @@ function RowMenu({
   onReschedule,
   onStatusChange,
   onNotify,
+  onViewInCalendar,
 }: {
   booking: Booking;
   onReschedule: (booking: Booking) => void;
   onStatusChange: (id: string, status: BookingStatus) => void;
   onNotify: (booking: Booking) => void;
+  onViewInCalendar?: (booking: Booking) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -86,7 +90,9 @@ function RowMenu({
 
   function handleAction(action: MenuAction) {
     setOpen(false);
-    if (action.key === 'reschedule') {
+    if (action.key === 'view') {
+      onViewInCalendar?.(booking);
+    } else if (action.key === 'reschedule') {
       onReschedule(booking);
     } else if (action.key === 'notify') {
       onNotify(booking);
@@ -129,7 +135,7 @@ function RowMenu({
   );
 }
 
-export default function PlanTable({ bookings, onReschedule }: PlanTableProps) {
+export default function PlanTable({ bookings, onReschedule, onViewInCalendar }: PlanTableProps) {
   const sendNotification = usePortStore((s) => s.sendNotification);
   const updateBookingStatus = (id: string, status: BookingStatus) => {
     usePortStore.getState().updateBookingStatus(id, status);
@@ -234,6 +240,7 @@ export default function PlanTable({ bookings, onReschedule }: PlanTableProps) {
                         onReschedule={onReschedule}
                         onStatusChange={updateBookingStatus}
                         onNotify={handleNotify}
+                        onViewInCalendar={onViewInCalendar}
                       />
                     </div>
                   </td>

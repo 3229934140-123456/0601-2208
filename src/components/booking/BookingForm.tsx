@@ -8,7 +8,7 @@ interface BookingFormProps {
   open: boolean;
   onClose: () => void;
   initialData?: Partial<Booking>;
-  onSave?: (assignBerth: boolean, bookingId?: string) => void;
+  onSave?: (assignBerth: boolean, booking?: Booking) => void;
 }
 
 const cargoTypes: CargoType[] = ['container', 'bulk', 'liquid', 'gas', 'general'];
@@ -127,7 +127,7 @@ export default function BookingForm({ open, onClose, initialData, onSave }: Book
     const result = createBooking(form, assignBerth);
     if (result) {
       onClose();
-      onSave?.(assignBerth, result.id);
+      onSave?.(assignBerth, result);
     }
   };
 

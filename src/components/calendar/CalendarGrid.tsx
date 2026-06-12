@@ -23,6 +23,7 @@ import { CARGO_LABELS } from '@/types';
 interface CalendarGridProps {
   viewMode: ViewMode;
   currentDate: Date;
+  highlightBookingId?: string | null;
 }
 
 // 每个单元格可放置的 Droppable
@@ -34,6 +35,7 @@ function DroppableCell({
   viewMode,
   isHoverValid,
   isHoverInvalid,
+  highlightBookingId,
 }: {
   id: string;
   berth: Berth;
@@ -42,6 +44,7 @@ function DroppableCell({
   viewMode: ViewMode;
   isHoverValid: boolean;
   isHoverInvalid: boolean;
+  highlightBookingId?: string | null;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
 
@@ -83,7 +86,7 @@ function DroppableCell({
             className="absolute left-1 right-1 z-10"
             style={style}
           >
-            <BookingCard booking={booking} hasConflict={false} />
+            <BookingCard booking={booking} hasConflict={false} highlight={booking.id === highlightBookingId} />
           </div>
         );
       })}
@@ -92,7 +95,7 @@ function DroppableCell({
 }
 
 // 日历网格主体
-export default function CalendarGrid({ viewMode, currentDate }: CalendarGridProps) {
+export default function CalendarGrid({ viewMode, currentDate, highlightBookingId }: CalendarGridProps) {
   const { getFilteredBerths, bookings, moveBookingOnCalendar, detectConflict } = usePortStore();
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
   const [hoverValid, setHoverValid] = useState(false);
@@ -296,6 +299,7 @@ export default function CalendarGrid({ viewMode, currentDate }: CalendarGridProp
                   viewMode={viewMode}
                   isHoverValid={hoverValid && activeBooking?.berthId !== berth.id}
                   isHoverInvalid={hoverInvalid && activeBooking?.berthId !== berth.id}
+                  highlightBookingId={highlightBookingId}
                 />
               );
             })}
@@ -335,12 +339,27 @@ export default function CalendarGrid({ viewMode, currentDate }: CalendarGridProp
                 const key = format(days[0], 'yyyy-MM-dd');
                 const slotId = `slot-${berth.id}-${key}-${h}`;
                 const fullSlotId = `slot-${berth.id}-${key}`;
-                const dayHoursBookings = (bookingsBySlot[fullSlotId] || []).filter((b) => {
-                  const startH = b.etb.getHours();
-                  const endH = b.etd.getHours() + (b.etd.getMinutes() > 0 ? 1 : 0);
-                  return h >= startH && h < endH;
+                const dayStart = new Date(days[0]);
+                dayStart.setHours(0, 0, 0, 0);
+                const dayEnd = new Date(dayStart);
+                dayEnd.setDate(dayEnd.getDate() + 1);
+                const hourStart = new Date(dayStart);
+                hourStart.setHours(h, 0, 0, 0);
+                const hourEnd = new Date(dayStart);
+                hourEnd.setHours(h + 1, 0, 0, 0);
+
+                const bookingsInHour = (bookingsBySlot[fullSlotId] || []).filter((b) => {
+                  const clampStart = b.etb.getTime() > dayStart.getTime() ? b.etb.getTime() : dayStart.getTime();
+                  const clampEnd = b.etd.getTime() < dayEnd.getTime() ? b.etd.getTime() : dayEnd.getTime();
+                  if (clampStart >= clampEnd) return false;
+                  return clampStart < hourEnd.getTime() && clampEnd > hourStart.getTime();
                 });
-                const useCell = dayHoursBookings.length > 0 && dayHoursBookings[0].etb.getHours() === h;
+
+                const starterBookings = bookingsInHour.filter((b) => {
+                  const clampStart = b.etb.getTime() > dayStart.getTime() ? b.etb.getTime() : dayStart.getTime();
+                  return clampStart >= hourStart.getTime() && clampStart < hourEnd.getTime();
+                });
+
                 const { setNodeRef, isOver } = useDroppable({ id: slotId });
                 return (
                   <div
@@ -352,26 +371,28 @@ export default function CalendarGrid({ viewMode, currentDate }: CalendarGridProp
                       isOver && hoverInvalid && 'border-2 border-red-500/60 bg-red-500/10',
                     )}
                   >
-                    {useCell && (() => {
-                      const booking = dayHoursBookings[0];
-                      const startH = booking.etb.getHours() + booking.etb.getMinutes() / 60;
-                      const endH = booking.etd.getHours() + booking.etd.getMinutes() / 60;
-                      const left = ((startH - h) / 1) * 100;
-                      const width = ((endH - startH) / 1) * 100;
-                      const colSpan = Math.ceil(endH - startH);
+                    {starterBookings.map((booking) => {
+                      const clampStart = Math.max(booking.etb.getTime(), dayStart.getTime());
+                      const clampEnd = Math.min(booking.etd.getTime(), dayEnd.getTime());
+                      const startHFloat = (clampStart - dayStart.getTime()) / (1000 * 60 * 60);
+                      const endHFloat = (clampEnd - dayStart.getTime()) / (1000 * 60 * 60);
+                      const left = Math.max(0, (startHFloat - h) * 100);
+                      const totalWidth = (endHFloat - startHFloat) * 100;
+                      const colSpan = Math.ceil(endHFloat - startHFloat);
                       return (
                         <div
+                          key={booking.id}
                           className="absolute top-1 bottom-1 z-10"
                           style={{
-                            left: `${Math.max(0, left)}%`,
-                            width: `calc(${Math.min(width, colSpan * 100)}% + ${Math.max(0, colSpan - 1)} * 0px)`,
+                            left: `${left}%`,
+                            width: `calc(${Math.min(totalWidth, colSpan * 100)}% + ${Math.max(0, colSpan - 1)} * 0px)`,
                             minWidth: '60px',
                           }}
                         >
-                          <BookingCard booking={booking} />
+                          <BookingCard booking={booking} highlight={booking.id === highlightBookingId} />
                         </div>
                       );
-                    })()}
+                    })}
                   </div>
                 );
               })}

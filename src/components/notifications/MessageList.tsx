@@ -1,11 +1,10 @@
 import { format, formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { usePortStore } from '@/store/usePortStore';
-import type { Notification, NotificationCategory } from '@/types';
+import type { Notification } from '@/types';
 
 interface MessageListProps {
-  category: NotificationCategory;
+  messages: Notification[];
   selectedId: string | null;
   onSelect: (msg: Notification) => void;
 }
@@ -19,9 +18,7 @@ const avatarColors = [
 ];
 
 // 消息列表
-export default function MessageList({ category, selectedId, onSelect }: MessageListProps) {
-  const { filterNotifications } = usePortStore();
-  const messages = filterNotifications(category);
+export default function MessageList({ messages, selectedId, onSelect }: MessageListProps) {
 
   const getAvatarColor = (name: string) => {
     let hash = 0;

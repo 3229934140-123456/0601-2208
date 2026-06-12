@@ -13,7 +13,7 @@ import type {
   TimeoutAlert,
   WaitingShip,
 } from '@/types';
-import { initPortData, generateId } from '@/lib/utils';
+import { initPortData, generateId, loadWaitingOrder, saveWaitingOrder, reorderBySavedOrder } from '@/lib/utils';
 
 type PartialNotification = Partial<Notification> &
   Pick<Notification, 'type' | 'title' | 'content'>;
@@ -117,7 +117,12 @@ const defaultFilters: CalendarFilters = {
   capabilities: [],
 };
 
-const initial = initPortData();
+const initialRaw = initPortData();
+const savedOrder = typeof window !== 'undefined' ? loadWaitingOrder() : null;
+const initial: typeof initialRaw = {
+  ...initialRaw,
+  waitingShips: reorderBySavedOrder(initialRaw.waitingShips, savedOrder),
+};
 const initialNotifications: Notification[] = [
   {
     id: generateId(),
@@ -305,13 +310,18 @@ const computeDerived = (bookings: Booking[], berths: Berth[]) => {
 
 const initialDerived = computeDerived(initial.bookings, initial.berths);
 
-export const usePortStore = create<PortState>((set, get) => ({
-  berths: initial.berths,
-  bookings: initial.bookings,
-  waitingShips: initial.waitingShips,
-  notifications: initialNotifications,
-  filters: defaultFilters,
-  ...initialDerived,
+export const usePortStore = create<PortState>((set, get) => {
+  const persist = (ws: WaitingShip[]) => {
+    saveWaitingOrder(ws.map((w) => w.id));
+  };
+
+  return {
+    berths: initial.berths,
+    bookings: initial.bookings,
+    waitingShips: initial.waitingShips,
+    notifications: initialNotifications,
+    filters: defaultFilters,
+    ...initialDerived,
 
   setFilters: (filters) =>
     set((s) => ({
@@ -354,6 +364,7 @@ export const usePortStore = create<PortState>((set, get) => ({
           expectedWaitHours: 24,
         });
       }
+      persist(newWaitingShips);
       const newBookings = [...state.bookings, booking];
       return {
         bookings: newBookings,
@@ -404,6 +415,7 @@ export const usePortStore = create<PortState>((set, get) => ({
           expectedWaitHours: 24,
         });
       }
+      persist(newWaitingShips);
       const newBookings = [...state.bookings, booking];
       return {
         bookings: newBookings,
@@ -465,9 +477,11 @@ export const usePortStore = create<PortState>((set, get) => ({
   deleteBooking: (id) =>
     set((s) => {
       const newBookings = s.bookings.filter((b) => b.id !== id);
+      const newWaitingShips = s.waitingShips.filter((w) => w.bookingId !== id);
+      persist(newWaitingShips);
       return {
         bookings: newBookings,
-        waitingShips: s.waitingShips.filter((w) => w.bookingId !== id),
+        waitingShips: newWaitingShips,
         ...computeDerived(newBookings, s.berths),
       };
     }),
@@ -516,11 +530,13 @@ export const usePortStore = create<PortState>((set, get) => ({
           ? { ...b, berthId, etb, etd, updatedAt: new Date() }
           : b
       );
+      const newWaitingShips = state.waitingShips.filter(
+        (w) => w.bookingId !== bookingId
+      );
+      persist(newWaitingShips);
       return {
         bookings: newBookings,
-        waitingShips: state.waitingShips.filter(
-          (w) => w.bookingId !== bookingId
-        ),
+        waitingShips: newWaitingShips,
         ...computeDerived(newBookings, state.berths),
       };
     });
@@ -541,6 +557,7 @@ export const usePortStore = create<PortState>((set, get) => ({
               expectedWaitHours: 24,
             },
           ];
+      persist(newWaitingShips);
       const newBookings = state.bookings.map((b) =>
         b.id === bookingId
           ? { ...b, berthId: null, updatedAt: new Date() }
@@ -571,11 +588,13 @@ export const usePortStore = create<PortState>((set, get) => ({
             }
           : b
       );
+      const newWaitingShips = state.waitingShips.filter(
+        (w) => w.bookingId !== bookingId
+      );
+      persist(newWaitingShips);
       return {
         bookings: newBookings,
-        waitingShips: state.waitingShips.filter(
-          (w) => w.bookingId !== bookingId
-        ),
+        waitingShips: newWaitingShips,
         ...computeDerived(newBookings, state.berths),
       };
     });
@@ -752,9 +771,11 @@ export const usePortStore = create<PortState>((set, get) => ({
   },
 
   clearWaitingShip: (bookingId) => {
-    set((s) => ({
-      waitingShips: s.waitingShips.filter((w) => w.bookingId !== bookingId),
-    }));
+    set((s) => {
+      const newWaitingShips = s.waitingShips.filter((w) => w.bookingId !== bookingId);
+      persist(newWaitingShips);
+      return { waitingShips: newWaitingShips };
+    });
   },
 
   reorderWaitingShips: (oldIndex, newIndex) => {
@@ -762,6 +783,7 @@ export const usePortStore = create<PortState>((set, get) => ({
       const arr = [...s.waitingShips];
       const [moved] = arr.splice(oldIndex, 1);
       arr.splice(newIndex, 0, moved);
+      persist(arr);
       return { waitingShips: arr };
     });
   },
@@ -829,4 +851,5 @@ export const usePortStore = create<PortState>((set, get) => ({
     });
     return alerts.sort((a, b) => b.hours - a.hours);
   },
-}));
+  };
+});
