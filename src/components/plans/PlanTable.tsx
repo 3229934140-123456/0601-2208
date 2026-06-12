@@ -130,11 +130,23 @@ function RowMenu({
 }
 
 export default function PlanTable({ bookings, onReschedule }: PlanTableProps) {
+  const sendNotification = usePortStore((s) => s.sendNotification);
   const updateBookingStatus = (id: string, status: BookingStatus) => {
     usePortStore.getState().updateBookingStatus(id, status);
   };
 
   const handleNotify = (booking: Booking) => {
+    sendNotification({
+      type: 'custom',
+      title: `${booking.shipName} 靠泊安排通知`,
+      content: `您好，${booking.shipName} 的靠泊安排如下：\n预计到港：${booking.eta.toLocaleString()}\n预计靠泊：${booking.etb.toLocaleString()}\n预计离港：${booking.etd.toLocaleString()}\n${booking.berthId ? `靠泊泊位：${booking.berthId}` : '待分配泊位'} \n请做好相关准备工作。`,
+      senderId: 'dispatcher001',
+      senderName: '调度员张三',
+      receiverId: booking.agentId,
+      receiverName: booking.agentName,
+      bookingId: booking.id,
+      relatedShipName: booking.shipName,
+    });
     alert(`已向 ${booking.agentName} 发送 ${booking.shipName} 的通知`);
   };
 

@@ -8,6 +8,7 @@ interface BookingFormProps {
   open: boolean;
   onClose: () => void;
   initialData?: Partial<Booking>;
+  onSave?: (assignBerth: boolean, bookingId?: string) => void;
 }
 
 const cargoTypes: CargoType[] = ['container', 'bulk', 'liquid', 'gas', 'general'];
@@ -43,7 +44,7 @@ const defaultForm: BookingFormData = {
 };
 
 // 预约表单Modal
-export default function BookingForm({ open, onClose, initialData }: BookingFormProps) {
+export default function BookingForm({ open, onClose, initialData, onSave }: BookingFormProps) {
   const [form, setForm] = useState<BookingFormData>(defaultForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { createBooking, detectConflict, recommendBerths, getBerthUtilization, berths } = usePortStore();
@@ -126,6 +127,7 @@ export default function BookingForm({ open, onClose, initialData }: BookingFormP
     const result = createBooking(form, assignBerth);
     if (result) {
       onClose();
+      onSave?.(assignBerth, result.id);
     }
   };
 

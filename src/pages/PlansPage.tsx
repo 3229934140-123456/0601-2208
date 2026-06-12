@@ -1,19 +1,22 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import { Home, ChevronRight, ListChecks } from 'lucide-react';
 import PlanToolbar from '@/components/plans/PlanToolbar';
 import PlanTable from '@/components/plans/PlanTable';
 import RescheduleModal from '@/components/plans/RescheduleModal';
+import BookingForm from '@/components/booking/BookingForm';
 import { usePortStore } from '@/store/usePortStore';
 import { exportTodayBookings } from '@/utils/exportUtils';
 import type { Booking, BookingStatus } from '@/types';
 
 export default function PlansPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<BookingStatus | 'all'>('all');
   const [date, setDate] = useState(new Date());
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [bookingFormOpen, setBookingFormOpen] = useState(false);
 
   const bookings = usePortStore((s) => s.bookings);
   const berths = usePortStore((s) => s.berths);
@@ -51,7 +54,13 @@ export default function PlansPage() {
   };
 
   const handleAddBooking = () => {
-    alert('新增预约功能 - 可集成预约表单弹窗');
+    setBookingFormOpen(true);
+  };
+
+  const handleBookingFormSave = (assignBerth: boolean, bookingId?: string) => {
+    if (assignBerth && bookingId) {
+      navigate('/calendar');
+    }
   };
 
   const handleExport = () => {
@@ -95,6 +104,12 @@ export default function PlansPage() {
           setSelectedBooking(null);
         }}
         onConfirm={handleRescheduleConfirm}
+      />
+
+      <BookingForm
+        open={bookingFormOpen}
+        onClose={() => setBookingFormOpen(false)}
+        onSave={handleBookingFormSave}
       />
     </div>
   );

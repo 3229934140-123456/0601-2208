@@ -7,18 +7,17 @@ import StatsCards from '@/components/dashboard/StatsCards';
 import WaitingQueue from '@/components/dashboard/WaitingQueue';
 import BerthStatusList from '@/components/dashboard/BerthStatusList';
 import TimeoutAlerts from '@/components/dashboard/TimeoutAlerts';
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import {
   SortableContext,
   verticalListSortingStrategy,
-  arrayMove,
 } from '@dnd-kit/sortable';
 import { usePortStore } from '@/store/usePortStore';
 
 export default function DashboardPage() {
   const [now, setNow] = useState(new Date());
   const waitingShips = usePortStore((s) => s.waitingShips);
-  const setWaitingShips = usePortStore.setState;
+  const reorderWaitingShips = usePortStore((s) => s.reorderWaitingShips);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -31,8 +30,19 @@ export default function DashboardPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = waitingShips.findIndex((w) => w.id === active.id);
+    const newIndex = waitingShips.findIndex((w) => w.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    reorderWaitingShips(oldIndex, newIndex);
+  };
+
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter}>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <div className="min-h-screen bg-slate-50">
         <div className="mx-auto max-w-[1600px] px-6 py-6">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">

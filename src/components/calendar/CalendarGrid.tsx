@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -11,12 +11,13 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { useDroppable } from '@dnd-kit/core';
+import { AlertTriangle, X } from 'lucide-react';
 import { eachDayOfInterval, format, startOfWeek, endOfWeek, addDays, setHours, setMinutes } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { usePortStore } from '@/store/usePortStore';
 import BookingCard from './BookingCard';
-import type { Booking, ViewMode, Berth } from '@/types';
+import type { Booking, ViewMode, Berth, ConflictInfo } from '@/types';
 import { CARGO_LABELS } from '@/types';
 
 interface CalendarGridProps {
@@ -97,6 +98,9 @@ export default function CalendarGrid({ viewMode, currentDate }: CalendarGridProp
   const [hoverValid, setHoverValid] = useState(false);
   const [hoverInvalid, setHoverInvalid] = useState(false);
   const [, setRollbackKey] = useState(0);
+  const [conflictAlert, setConflictAlert] = useState<ConflictInfo | null>(null);
+
+  const dismissConflict = useCallback(() => setConflictAlert(null), []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -156,6 +160,32 @@ export default function CalendarGrid({ viewMode, currentDate }: CalendarGridProp
     if (booking) setActiveBooking(booking);
   };
 
+  const parseSlotId = (id: string) => {
+    if (!id.startsWith('slot-')) return null;
+    const parts = id.split('-');
+    if (parts.length >= 5 && parts.length <= 6) {
+      const berthId = parts[1];
+      const dayStr = `${parts[2]}-${parts[3]}-${parts[4]}`;
+      const hour = parts.length === 6 ? parseInt(parts[5], 10) : null;
+      return { berthId, dayStr, hour };
+    }
+    return null;
+  };
+
+  const computeNewTimes = useCallback((dayStr: string, hour: number | null, booking: Booking) => {
+    const dur = booking.etd.getTime() - booking.etb.getTime();
+    if (hour !== null && hour !== undefined) {
+      const newStart = setMinutes(setHours(new Date(dayStr), hour), 0);
+      const newEnd = new Date(newStart.getTime() + dur);
+      return { newStart, newEnd };
+    }
+    const startH = booking.etb.getHours();
+    const startM = booking.etb.getMinutes();
+    const newStart = setMinutes(setHours(new Date(dayStr), startH), startM);
+    const newEnd = new Date(newStart.getTime() + dur);
+    return { newStart, newEnd };
+  }, []);
+
   const handleDragOver = (event: DragOverEvent) => {
     if (!event.over || !activeBooking) {
       setHoverValid(false);
@@ -163,19 +193,14 @@ export default function CalendarGrid({ viewMode, currentDate }: CalendarGridProp
       return;
     }
     const overId = String(event.over.id);
-    if (!overId.startsWith('slot-')) {
+    const parsed = parseSlotId(overId);
+    if (!parsed) {
       setHoverValid(false);
       setHoverInvalid(false);
       return;
     }
-    const parts = overId.split('-');
-    const berthId = parts[1];
-    const dayStr = `${parts[2]}-${parts[3]}-${parts[4]}`;
-
-    const duration = activeBooking.etd.getTime() - activeBooking.etb.getTime();
-    const newStart = setMinutes(setHours(new Date(dayStr), 8), 0);
-    const newEnd = new Date(newStart.getTime() + duration);
-
+    const { berthId, dayStr, hour } = parsed;
+    const { newStart, newEnd } = computeNewTimes(dayStr, hour, activeBooking);
     const conflict = detectConflict(newStart, newEnd, berthId, activeBooking.id);
     setHoverValid(!conflict.hasConflict);
     setHoverInvalid(conflict.hasConflict);
@@ -190,19 +215,16 @@ export default function CalendarGrid({ viewMode, currentDate }: CalendarGridProp
 
     if (!over || !booking) return;
     const overId = over.id as string;
-    if (!overId.startsWith('slot-')) return;
-
-    const parts = overId.split('-');
-    const berthId = parts[1];
-    const dayStr = `${parts[2]}-${parts[3]}-${parts[4]}`;
-
-    const duration = booking.etd.getTime() - booking.etb.getTime();
-    const newStart = setMinutes(setHours(new Date(dayStr), 8), 0);
-    const newEnd = new Date(newStart.getTime() + duration);
+    const parsed = parseSlotId(overId);
+    if (!parsed) return;
+    const { berthId, dayStr, hour } = parsed;
+    const { newStart, newEnd } = computeNewTimes(dayStr, hour, booking);
 
     const result = moveBookingOnCalendar(booking.id, berthId, newStart, newEnd);
     if (!result.success) {
       setRollbackKey((k) => k + 1);
+      setConflictAlert(result.conflict || { hasConflict: true });
+      setTimeout(() => setConflictAlert(null), 5000);
     }
   };
 
@@ -319,10 +341,16 @@ export default function CalendarGrid({ viewMode, currentDate }: CalendarGridProp
                   return h >= startH && h < endH;
                 });
                 const useCell = dayHoursBookings.length > 0 && dayHoursBookings[0].etb.getHours() === h;
+                const { setNodeRef, isOver } = useDroppable({ id: slotId });
                 return (
                   <div
+                    ref={setNodeRef}
                     key={slotId}
-                    className="relative h-[60px] border-b border-r border-slate-700/50"
+                    className={cn(
+                      'relative h-[60px] border-b border-r border-slate-700/50 transition-colors',
+                      isOver && hoverValid && 'border-2 border-emerald-500/60 bg-emerald-500/10',
+                      isOver && hoverInvalid && 'border-2 border-red-500/60 bg-red-500/10',
+                    )}
                   >
                     {useCell && (() => {
                       const booking = dayHoursBookings[0];
@@ -356,21 +384,48 @@ export default function CalendarGrid({ viewMode, currentDate }: CalendarGridProp
   };
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCorners}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
-    >
-      {viewMode === 'week' ? renderWeekView() : renderDayView()}
-      <DragOverlay dropAnimation={null}>
-        {activeBooking && (
-          <div className="opacity-80 shadow-2xl" style={{ width: '200px', height: '80px' }}>
-            <BookingCard booking={activeBooking} />
+    <div className="relative">
+      {conflictAlert && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-500/40 bg-gradient-to-r from-red-500/15 to-red-500/5 px-5 py-3 shadow-lg animate-breath-glow">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <AlertTriangle className="h-5 w-5 text-red-400" />
+              <span className="absolute inset-0 rounded-full bg-red-500/40 animate-pulse-ring" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-red-300">时间冲突，已保持原安排</div>
+              <div className="text-xs text-red-400/80">
+                {conflictAlert.conflictShipName
+                  ? `与「${conflictAlert.conflictShipName}」的靠泊时间重叠`
+                  : '该时段已被占用，请调整时间或更换泊位'}
+              </div>
+            </div>
           </div>
-        )}
-      </DragOverlay>
-    </DndContext>
+          <button
+            type="button"
+            onClick={dismissConflict}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-red-400 transition-colors hover:bg-red-500/20 hover:text-red-300"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        {viewMode === 'week' ? renderWeekView() : renderDayView()}
+        <DragOverlay dropAnimation={null}>
+          {activeBooking && (
+            <div className="opacity-80 shadow-2xl" style={{ width: '200px', height: '80px' }}>
+              <BookingCard booking={activeBooking} />
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
+    </div>
   );
 }

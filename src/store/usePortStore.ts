@@ -102,6 +102,7 @@ interface PortState {
   filterNotifications: (category: NotificationCategory) => Notification[];
 
   clearWaitingShip: (bookingId: string) => void;
+  reorderWaitingShips: (oldIndex: number, newIndex: number) => void;
 
   getTodayBerthedCount: () => number;
   getWaitingCount: () => number;
@@ -754,6 +755,15 @@ export const usePortStore = create<PortState>((set, get) => ({
     set((s) => ({
       waitingShips: s.waitingShips.filter((w) => w.bookingId !== bookingId),
     }));
+  },
+
+  reorderWaitingShips: (oldIndex, newIndex) => {
+    set((s) => {
+      const arr = [...s.waitingShips];
+      const [moved] = arr.splice(oldIndex, 1);
+      arr.splice(newIndex, 0, moved);
+      return { waitingShips: arr };
+    });
   },
 
   getTodayBerthedCount: () => get().todayBerthedCount,
