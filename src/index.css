@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  html {
+    font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui,
+      -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+      sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    color: #e2e8f0;
+    background-color: #0f172a;
+    background-image:
+      radial-gradient(
+        ellipse 80% 50% at 50% -20%,
+        rgba(14, 165, 233, 0.08),
+        transparent
+      ),
+      linear-gradient(
+        to right,
+        rgba(12, 74, 110, 0.08) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        rgba(12, 74, 110, 0.08) 1px,
+        transparent 1px
+      );
+    background-size:
+      100% 100%,
+      48px 48px,
+      48px 48px;
+    background-attachment: fixed;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #07598520;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #0284c760;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #0ea5e980;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #0284c760 #07598520;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply backdrop-blur bg-slatex-850/70 border border-white/5 rounded-xl shadow-xl;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg
+      bg-port-500 text-white text-sm font-medium
+      hover:bg-port-400 active:bg-port-600
+      focus:outline-none focus:ring-2 focus:ring-port-400/50
+      transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg
+      bg-port-900/60 text-port-200 text-sm font-medium
+      border border-port-700/50
+      hover:bg-port-800/60 hover:text-port-100 hover:border-port-600/50
+      focus:outline-none focus:ring-2 focus:ring-port-500/30
+      transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg
+      text-port-200 text-sm font-medium
+      hover:bg-white/5 hover:text-port-100
+      focus:outline-none focus:ring-2 focus:ring-port-500/20
+      transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .input-field {
+    @apply w-full px-3 py-2 rounded-lg
+      bg-slatex-900/80 text-port-100 text-sm
+      border border-port-800/40
+      placeholder:text-port-300/40
+      focus:outline-none focus:border-port-500/60 focus:ring-2 focus:ring-port-500/20
+      transition-all duration-150;
+  }
+
+  .select-field {
+    @apply w-full px-3 py-2 rounded-lg cursor-pointer
+      bg-slatex-900/80 text-port-100 text-sm
+      border border-port-800/40
+      focus:outline-none focus:border-port-500/60 focus:ring-2 focus:ring-port-500/20
+      transition-all duration-150;
+  }
+}
+
+@layer utilities {
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
