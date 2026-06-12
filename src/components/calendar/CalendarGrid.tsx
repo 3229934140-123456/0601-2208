@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -17,6 +17,7 @@ import { zhCN } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { usePortStore } from '@/store/usePortStore';
 import BookingCard from './BookingCard';
+import DayHourCell from './DayHourCell';
 import type { Booking, ViewMode, Berth, ConflictInfo } from '@/types';
 import { CARGO_LABELS } from '@/types';
 
@@ -24,6 +25,7 @@ interface CalendarGridProps {
   viewMode: ViewMode;
   currentDate: Date;
   highlightBookingId?: string | null;
+  focusBerthId?: string | null;
 }
 
 // 每个单元格可放置的 Droppable
@@ -95,15 +97,31 @@ function DroppableCell({
 }
 
 // 日历网格主体
-export default function CalendarGrid({ viewMode, currentDate, highlightBookingId }: CalendarGridProps) {
+export default function CalendarGrid({ viewMode, currentDate, highlightBookingId, focusBerthId }: CalendarGridProps) {
   const { getFilteredBerths, bookings, moveBookingOnCalendar, detectConflict } = usePortStore();
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
   const [hoverValid, setHoverValid] = useState(false);
   const [hoverInvalid, setHoverInvalid] = useState(false);
   const [, setRollbackKey] = useState(0);
   const [conflictAlert, setConflictAlert] = useState<ConflictInfo | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const dismissConflict = useCallback(() => setConflictAlert(null), []);
+
+  useEffect(() => {
+    if (!focusBerthId) return;
+    const t = setTimeout(() => {
+      const el = containerRef.current?.querySelector(`[data-berth-id="${focusBerthId}"]`) as HTMLElement | null;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-port-400/60', 'bg-port-900/30');
+        setTimeout(() => {
+          el.classList.remove('ring-2', 'ring-port-400/60', 'bg-port-900/30');
+        }, 3000);
+      }
+    }, 120);
+    return () => clearTimeout(t);
+  }, [focusBerthId, viewMode, currentDate]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -232,7 +250,7 @@ export default function CalendarGrid({ viewMode, currentDate, highlightBookingId
   };
 
   const renderWeekView = () => (
-    <div className="overflow-auto rounded-xl border border-slate-700/60 bg-slatex-800/40">
+    <div ref={containerRef} className="overflow-auto rounded-xl border border-slate-700/60 bg-slatex-800/40">
       <div className="grid" style={{ gridTemplateColumns: `160px repeat(${days.length}, minmax(180px, 1fr))` }}>
         <div className="sticky left-0 z-20 border-b border-r border-slate-700/60 bg-slatex-850 p-3 text-xs font-medium text-slate-400">
           泊位 / 日期
@@ -261,7 +279,8 @@ export default function CalendarGrid({ viewMode, currentDate, highlightBookingId
           <>
             <div
               key={`berth-${berth.id}`}
-              className="sticky left-0 z-10 flex flex-col justify-center border-b border-r border-slate-700/60 bg-slatex-800/80 p-3"
+              data-berth-id={berth.id}
+              className="sticky left-0 z-10 flex flex-col justify-center border-b border-r border-slate-700/60 bg-slatex-800/80 p-3 transition-all duration-500"
             >
               <div className="text-sm font-bold text-slate-100">{berth.name}</div>
               <div className="mt-1 flex flex-wrap gap-1">
@@ -311,8 +330,14 @@ export default function CalendarGrid({ viewMode, currentDate, highlightBookingId
 
   const renderDayView = () => {
     const totalCols = hours.length + 1;
+    const dayKey = format(days[0], 'yyyy-MM-dd');
+    const dayStart = new Date(days[0]);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+
     return (
-      <div className="overflow-auto rounded-xl border border-slate-700/60 bg-slatex-800/40">
+      <div ref={containerRef} className="overflow-auto rounded-xl border border-slate-700/60 bg-slatex-800/40">
         <div className="grid" style={{ gridTemplateColumns: `160px repeat(${hours.length}, minmax(60px, 1fr))` }}>
           <div className="sticky left-0 z-20 border-b border-r border-slate-700/60 bg-slatex-850 p-3 text-xs font-medium text-slate-400">
             泊位 / 小时
@@ -326,78 +351,50 @@ export default function CalendarGrid({ viewMode, currentDate, highlightBookingId
             </div>
           ))}
 
-          {filteredBerths.map((berth) => (
-            <>
-              <div
-                key={`berth-d-${berth.id}`}
-                className="sticky left-0 z-10 flex flex-col justify-center border-b border-r border-slate-700/60 bg-slatex-800/80 p-3"
-              >
-                <div className="text-sm font-bold text-slate-100">{berth.name}</div>
-                <div className="mt-1 text-xs text-slate-400">{berth.depth}m</div>
-              </div>
-              {hours.map((h) => {
-                const key = format(days[0], 'yyyy-MM-dd');
-                const slotId = `slot-${berth.id}-${key}-${h}`;
-                const fullSlotId = `slot-${berth.id}-${key}`;
-                const dayStart = new Date(days[0]);
-                dayStart.setHours(0, 0, 0, 0);
-                const dayEnd = new Date(dayStart);
-                dayEnd.setDate(dayEnd.getDate() + 1);
-                const hourStart = new Date(dayStart);
-                hourStart.setHours(h, 0, 0, 0);
-                const hourEnd = new Date(dayStart);
-                hourEnd.setHours(h + 1, 0, 0, 0);
+          {filteredBerths.map((berth) => {
+            const fullSlotId = `slot-${berth.id}-${dayKey}`;
+            return (
+              <>
+                <div
+                  key={`berth-d-${berth.id}`}
+                  data-berth-id={berth.id}
+                  className="sticky left-0 z-10 flex flex-col justify-center border-b border-r border-slate-700/60 bg-slatex-800/80 p-3 transition-all duration-500"
+                >
+                  <div className="text-sm font-bold text-slate-100">{berth.name}</div>
+                  <div className="mt-1 text-xs text-slate-400">{berth.depth}m</div>
+                </div>
+                {hours.map((h) => {
+                  const slotId = `slot-${berth.id}-${dayKey}-${h}`;
+                  const hourStartTs = dayStart.getTime() + h * 3600 * 1000;
+                  const hourEndTs = hourStartTs + 3600 * 1000;
 
-                const bookingsInHour = (bookingsBySlot[fullSlotId] || []).filter((b) => {
-                  const clampStart = b.etb.getTime() > dayStart.getTime() ? b.etb.getTime() : dayStart.getTime();
-                  const clampEnd = b.etd.getTime() < dayEnd.getTime() ? b.etd.getTime() : dayEnd.getTime();
-                  if (clampStart >= clampEnd) return false;
-                  return clampStart < hourEnd.getTime() && clampEnd > hourStart.getTime();
-                });
+                  const bookingsInHour = (bookingsBySlot[fullSlotId] || []).filter((b) => {
+                    const clampStart = Math.max(b.etb.getTime(), dayStart.getTime());
+                    const clampEnd = Math.min(b.etd.getTime(), dayEnd.getTime());
+                    if (clampStart >= clampEnd) return false;
+                    return clampStart < hourEndTs && clampEnd > hourStartTs;
+                  });
 
-                const starterBookings = bookingsInHour.filter((b) => {
-                  const clampStart = b.etb.getTime() > dayStart.getTime() ? b.etb.getTime() : dayStart.getTime();
-                  return clampStart >= hourStart.getTime() && clampStart < hourEnd.getTime();
-                });
-
-                const { setNodeRef, isOver } = useDroppable({ id: slotId });
-                return (
-                  <div
-                    ref={setNodeRef}
-                    key={slotId}
-                    className={cn(
-                      'relative h-[60px] border-b border-r border-slate-700/50 transition-colors',
-                      isOver && hoverValid && 'border-2 border-emerald-500/60 bg-emerald-500/10',
-                      isOver && hoverInvalid && 'border-2 border-red-500/60 bg-red-500/10',
-                    )}
-                  >
-                    {starterBookings.map((booking) => {
-                      const clampStart = Math.max(booking.etb.getTime(), dayStart.getTime());
-                      const clampEnd = Math.min(booking.etd.getTime(), dayEnd.getTime());
-                      const startHFloat = (clampStart - dayStart.getTime()) / (1000 * 60 * 60);
-                      const endHFloat = (clampEnd - dayStart.getTime()) / (1000 * 60 * 60);
-                      const left = Math.max(0, (startHFloat - h) * 100);
-                      const totalWidth = (endHFloat - startHFloat) * 100;
-                      const colSpan = Math.ceil(endHFloat - startHFloat);
-                      return (
-                        <div
-                          key={booking.id}
-                          className="absolute top-1 bottom-1 z-10"
-                          style={{
-                            left: `${left}%`,
-                            width: `calc(${Math.min(totalWidth, colSpan * 100)}% + ${Math.max(0, colSpan - 1)} * 0px)`,
-                            minWidth: '60px',
-                          }}
-                        >
-                          <BookingCard booking={booking} highlight={booking.id === highlightBookingId} />
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </>
-          ))}
+                  return (
+                    <DayHourCell
+                      key={slotId}
+                      slotId={slotId}
+                      berth={berth}
+                      dayKey={dayKey}
+                      dayStart={dayStart}
+                      dayEnd={dayEnd}
+                      hour={h}
+                      bookingsInHour={bookingsInHour}
+                      isHoverValid={hoverValid}
+                      isHoverInvalid={hoverInvalid}
+                      activeBookingId={activeBooking?.berthId}
+                      highlightBookingId={highlightBookingId}
+                    />
+                  );
+                })}
+              </>
+            );
+          })}
         </div>
         <div style={{ display: 'none' }}>{totalCols}</div>
       </div>

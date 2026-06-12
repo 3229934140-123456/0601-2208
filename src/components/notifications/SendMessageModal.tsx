@@ -1,8 +1,10 @@
-import { useState } from 'react';
-import { X, Send, FileText, Calendar, RefreshCw, Bell } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { X, Send, FileText, Calendar, RefreshCw, Bell, Ship } from 'lucide-react';
+import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { usePortStore } from '@/store/usePortStore';
-import type { NotificationType } from '@/types';
+import type { NotificationType, Booking, CargoType } from '@/types';
+import { CARGO_LABELS } from '@/types';
 
 interface SendMessageModalProps {
   open: boolean;
@@ -41,15 +43,53 @@ const templates: Record<string, { title: string; content: string }> = {
   },
 };
 
+function bCargoLabel(t: CargoType) {
+  return CARGO_LABELS[t] || t;
+}
+
+function fillPlaceholders(tpl: string, b: Booking | null, berthName: string) {
+  let s = tpl;
+  if (b) {
+    s = s.replace(/\[船名\]/g, b.shipName);
+    s = s.replace(/\[泊位名称\]/g, berthName);
+    s = s.replace(/\[日期时间\]/g, (_m, i) => {
+      const firstIdx = s.indexOf('[日期时间]');
+      if (i === 0 || firstIdx === s.indexOf('[日期时间]', i - 10)) {
+        return format(b.etb, 'yyyy-MM-dd HH:mm');
+      }
+      return format(b.etd, 'yyyy-MM-dd HH:mm');
+    });
+  }
+  return s;
+}
+
 // 发送消息弹窗
 export default function SendMessageModal({ open, onClose }: SendMessageModalProps) {
-  const { sendNotification } = usePortStore();
+  const { sendNotification, bookings, berths } = usePortStore();
   const [receiverId, setReceiverId] = useState('');
   const [receiverName, setReceiverName] = useState('');
   const [msgType, setMsgType] = useState<NotificationType>('confirm');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [selectedBookingId, setSelectedBookingId] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const bookingOptions = useMemo(() => {
+    return bookings
+      .filter((b) => !receiverId || b.agentId === receiverId)
+      .sort((a, b) => b.etb.getTime() - a.etb.getTime())
+      .slice(0, 50);
+  }, [bookings, receiverId]);
+
+  const selectedBooking = useMemo(
+    () => bookings.find((b) => b.id === selectedBookingId) || null,
+    [bookings, selectedBookingId],
+  );
+
+  const selectedBerthName = useMemo(() => {
+    if (!selectedBooking?.berthId) return '未分配';
+    return berths.find((b) => b.id === selectedBooking.berthId)?.name || '未分配';
+  }, [selectedBooking, berths]);
 
   const handleClose = () => {
     setReceiverId('');
@@ -57,6 +97,7 @@ export default function SendMessageModal({ open, onClose }: SendMessageModalProp
     setMsgType('confirm');
     setTitle('');
     setContent('');
+    setSelectedBookingId('');
     setErrors({});
     onClose();
   };
@@ -64,8 +105,8 @@ export default function SendMessageModal({ open, onClose }: SendMessageModalProp
   const applyTemplate = (key: string) => {
     const tpl = templates[key];
     if (tpl) {
-      setTitle(tpl.title);
-      setContent(tpl.content);
+      setTitle(fillPlaceholders(tpl.title, selectedBooking, selectedBerthName));
+      setContent(fillPlaceholders(tpl.content, selectedBooking, selectedBerthName));
       if (key !== 'custom') {
         const t = typeOptions.find((o) => o.key === key);
         if (t) setMsgType(t.key as NotificationType);
@@ -85,6 +126,10 @@ export default function SendMessageModal({ open, onClose }: SendMessageModalProp
     }
   };
 
+  const handleSelectBooking = (id: string) => {
+    setSelectedBookingId(id);
+  };
+
   const handleSend = () => {
     const e: Record<string, string> = {};
     if (!receiverId) e.receiverId = '请选择收件人';
@@ -94,7 +139,15 @@ export default function SendMessageModal({ open, onClose }: SendMessageModalProp
       setErrors(e);
       return;
     }
-    sendNotification(msgType, title.trim(), content.trim(), receiverId, receiverName);
+    sendNotification(
+      msgType,
+      title.trim(),
+      content.trim(),
+      receiverId,
+      receiverName,
+      selectedBookingId || undefined,
+      selectedBooking?.shipName,
+    );
     handleClose();
   };
 
@@ -187,6 +240,40 @@ export default function SendMessageModal({ open, onClose }: SendMessageModalProp
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-slate-400">
+                <span className="mr-1 inline-flex items-center gap-1">
+                  <Ship className="h-3 w-3 text-port-400" />
+                  关联船舶计划
+                </span>
+                <span className="text-slate-500">（可选，关联后可按船名搜索并显示计划摘要）</span>
+              </label>
+              <select
+                value={selectedBookingId}
+                onChange={(e) => handleSelectBooking(e.target.value)}
+                className={cn(
+                  'h-10 w-full appearance-none rounded-lg border bg-slatex-850 px-3 pr-10 text-sm text-slate-100 outline-none transition-all border-slate-600 focus:border-port-500 focus:ring-1 focus:ring-port-500/40',
+                )}
+              >
+                <option value="">暂不关联船舶计划</option>
+                {bookingOptions.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.shipName} · {b.agentName} · {format(b.etb, 'MM-dd HH:mm')}
+                  </option>
+                ))}
+              </select>
+              {selectedBooking && (
+                <div className="mt-2 rounded-lg border border-slate-600/60 bg-slatex-800/50 px-3 py-2 text-[11px] text-slate-400">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    <span>泊位：<span className="text-slate-200">{selectedBerthName}</span></span>
+                    <span>货类：<span className="text-slate-200">{bCargoLabel(selectedBooking.cargoType)}</span></span>
+                    <span>ETB：<span className="text-slate-200">{format(selectedBooking.etb, 'MM-dd HH:mm')}</span></span>
+                    <span>ETD：<span className="text-slate-200">{format(selectedBooking.etd, 'MM-dd HH:mm')}</span></span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>

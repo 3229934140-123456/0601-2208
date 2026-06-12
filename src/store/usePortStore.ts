@@ -449,13 +449,24 @@ export const usePortStore = create<PortState>((set, get) => {
       const newBookings = state.bookings.map((b) =>
         b.id === id ? { ...b, ...patch } : b
       );
+      const updatedBooking = newBookings.find((b) => b.id === id);
       const newNotifications = [...state.notifications];
-      if (rescheduleReason && booking) {
+      if (rescheduleReason && booking && updatedBooking) {
+        const fmt = (d: Date) => {
+          const pad = (n: number) => n.toString().padStart(2, '0');
+          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        };
+        const berthName = updatedBooking.berthId
+          ? state.berths.find((br) => br.id === updatedBooking.berthId)?.name || '未分配'
+          : '未分配';
+        const timeHint = newEtb || newEtd
+          ? `，调整后靠泊时间：${fmt(updatedBooking.etb)}，离港时间：${fmt(updatedBooking.etd)}，泊位：${berthName}`
+          : `，泊位：${berthName}`;
         newNotifications.unshift({
           id: generateId(),
           type: 'reschedule',
           title: '船舶靠泊计划调整',
-          content: `${booking.shipName} 靠泊计划已调整，原因：${rescheduleReason}`,
+          content: `${booking.shipName} 靠泊计划已调整${timeHint}，原因：${rescheduleReason}`,
           senderId: 'dispatcher001',
           senderName: '调度员张三',
           receiverId: booking.agentId,

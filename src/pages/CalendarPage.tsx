@@ -14,13 +14,28 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
+  const [focusBerthId, setFocusBerthId] = useState<string | null>(null);
 
   useEffect(() => {
     const dateParam = searchParams.get('date');
+    const berthParam = searchParams.get('berth');
     const highlightParam = searchParams.get('highlight');
     if (dateParam) {
       const d = new Date(dateParam);
       if (!isNaN(d.getTime())) setCurrentDate(d);
+    }
+    if (berthParam) {
+      setFocusBerthId(berthParam);
+      const t1 = setTimeout(() => setFocusBerthId(null), 3500);
+      const t2 = setTimeout(() => {
+        const next = new URLSearchParams(searchParams);
+        next.delete('berth');
+        setSearchParams(next, { replace: true });
+      }, 5000);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     }
     if (highlightParam) {
       setHighlightBookingId(highlightParam);
@@ -61,7 +76,7 @@ export default function CalendarPage() {
       <FilterPanel />
 
       <div className="flex-1 min-h-0">
-        <CalendarGrid viewMode={viewMode} currentDate={currentDate} highlightBookingId={highlightBookingId} />
+        <CalendarGrid viewMode={viewMode} currentDate={currentDate} highlightBookingId={highlightBookingId} focusBerthId={focusBerthId} />
       </div>
 
       <BookingForm open={showBookingForm} onClose={() => setShowBookingForm(false)} />
