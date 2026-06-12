@@ -43,13 +43,7 @@ export default function PlansPage() {
 
   const handleRescheduleConfirm = (reason: string, newEtb?: Date, newEtd?: Date) => {
     if (selectedBooking) {
-      storeUpdateBookingStatus(selectedBooking.id, selectedBooking.status, reason);
-      if (newEtb || newEtd) {
-        updateBooking(selectedBooking.id, {
-          ...(newEtb && { etb: newEtb }),
-          ...(newEtd && { etd: newEtd }),
-        });
-      }
+      storeUpdateBookingStatus(selectedBooking.id, selectedBooking.status, reason, newEtb, newEtd);
     }
     setModalOpen(false);
     setSelectedBooking(null);

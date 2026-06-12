@@ -20,33 +20,39 @@ export default function CalendarPage() {
     const dateParam = searchParams.get('date');
     const berthParam = searchParams.get('berth');
     const highlightParam = searchParams.get('highlight');
+
     if (dateParam) {
       const d = new Date(dateParam);
       if (!isNaN(d.getTime())) setCurrentDate(d);
     }
+
+    const timers: number[] = [];
+
     if (berthParam) {
       setFocusBerthId(berthParam);
-      const t1 = setTimeout(() => setFocusBerthId(null), 3500);
-      const t2 = setTimeout(() => {
-        const next = new URLSearchParams(searchParams);
-        next.delete('berth');
-        setSearchParams(next, { replace: true });
-      }, 5000);
-      return () => {
-        clearTimeout(t1);
-        clearTimeout(t2);
-      };
+      timers.push(window.setTimeout(() => setFocusBerthId(null), 3500));
+      timers.push(window.setTimeout(() => {
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('berth');
+          return next;
+        }, { replace: true });
+      }, 5000));
     }
+
     if (highlightParam) {
       setHighlightBookingId(highlightParam);
-      const t = setTimeout(() => {
-        setHighlightBookingId(null);
-        const next = new URLSearchParams(searchParams);
-        next.delete('highlight');
-        setSearchParams(next, { replace: true });
-      }, 4000);
-      return () => clearTimeout(t);
+      timers.push(window.setTimeout(() => setHighlightBookingId(null), 4000));
+      timers.push(window.setTimeout(() => {
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('highlight');
+          return next;
+        }, { replace: true });
+      }, 4500));
     }
+
+    return () => timers.forEach((t) => clearTimeout(t));
   }, [searchParams, setSearchParams]);
 
   return (

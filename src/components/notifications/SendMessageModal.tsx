@@ -11,13 +11,6 @@ interface SendMessageModalProps {
   onClose: () => void;
 }
 
-const agentOptions = [
-  { id: 'a1', name: '中远船代' },
-  { id: 'a2', name: '外轮船代' },
-  { id: 'a3', name: '海油船代' },
-  { id: 'a4', name: '中外运船代' },
-];
-
 const typeOptions: { key: NotificationType; label: string; icon: React.ComponentType<{ className?: string }>; color: string }[] = [
   { key: 'confirm', label: '靠泊确认', icon: Calendar, color: 'text-emerald-400' },
   { key: 'reschedule', label: '改期通知', icon: RefreshCw, color: 'text-amber-400' },
@@ -74,6 +67,16 @@ export default function SendMessageModal({ open, onClose }: SendMessageModalProp
   const [selectedBookingId, setSelectedBookingId] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const agentOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    bookings.forEach((b) => {
+      if (b.agentId && b.agentName && !map.has(b.agentId)) {
+        map.set(b.agentId, b.agentName);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [bookings]);
+
   const bookingOptions = useMemo(() => {
     return bookings
       .filter((b) => !receiverId || b.agentId === receiverId)
@@ -117,6 +120,12 @@ export default function SendMessageModal({ open, onClose }: SendMessageModalProp
   const handleSelectAgent = (id: string, name: string) => {
     setReceiverId(id);
     setReceiverName(name);
+    if (selectedBookingId) {
+      const belong = bookings.find((b) => b.id === selectedBookingId);
+      if (!belong || belong.agentId !== id) {
+        setSelectedBookingId('');
+      }
+    }
     if (errors.receiverId) {
       setErrors((e) => {
         const n = { ...e };
